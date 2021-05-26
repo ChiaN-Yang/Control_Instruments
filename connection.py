@@ -1,6 +1,6 @@
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtWidgets import QMessageBox
-from interface_pymeasure import Ui_MainWindow
+from connection_interface import Ui_MainWindow
 import sys
 import pyvisa as visa
 import numpy as np
