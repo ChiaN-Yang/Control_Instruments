@@ -3,11 +3,8 @@ use pyqt5 and pymeasure to control instruments in Qfort lab
 
 ## Installation
 pyqt5
-
 pymeasure
-
 numpy
-
 labdrivers
 
 ## Hint
