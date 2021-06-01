@@ -1,18 +1,20 @@
 # Control_Instruments
 use pyqt5 and pymeasure to control instruments in Qfort lab
 
-
+***
 ## Installation
-pyqt5
+Before run this program, you need to install package below:
 
-pymeasure
+- PyQt5
 
-numpy
+- Pymeasure
 
-labdrivers
+- Numpy
 
+- Labdrivers
 
+***
 ## Hint
 you can transfer .ui to .py by this command
 
-pyuic5 -x connection_interface.ui -o connection_interface.py
+    pyuic5 -x connection_interface.ui -o connection_interface.py
