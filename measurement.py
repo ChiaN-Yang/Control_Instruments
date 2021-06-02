@@ -51,7 +51,7 @@ class ControlPanel(QtWidgets.QMainWindow):
         self.ui.actionQuit.triggered.connect(app.exit)
         
         # Set Window Icon
-        self.setWindowIcon(QtGui.QIcon('Qfort.png'))
+        self.setWindowIcon(QtGui.QIcon('Qfort.jpg'))
 
         # all my instruments
         self.Keithley2400_1 = None
@@ -169,11 +169,11 @@ class ControlPanel(QtWidgets.QMainWindow):
         self.p_2_info('%s has been connected successfully.' %self.Ins_type)
 
         # refresh table_instrList
-        row_len = self.ui.table_instrList.rowCount() -1
-        self.ui.table_instrList.insertRow(row_len+1)
+        self.row_len = self.ui.table_instrList.rowCount() -1
+        self.ui.table_instrList.insertRow(self.row_len +1)
         Ins_property = [self.Ins_name, self.Ins_type, self.Ins_VISA_add, self.Ins_usage]
         for i,p in enumerate(Ins_property):
-            self.ui.table_instrList.setItem(row_len, i, QtWidgets.QTableWidgetItem(p))
+            self.ui.table_instrList.setItem(self.row_len, i, QtWidgets.QTableWidgetItem(p))
 
         # add METHOD
         if self.Ins_usage == 'output voltage & measure current':
@@ -182,8 +182,14 @@ class ControlPanel(QtWidgets.QMainWindow):
             self.METHOD.append('Keithley2400_oIrV')
 
 
-    def delete_list():
-        pass
+    def delete_list(self):
+        if self.row_len >= 0:
+            self.ui.table_instrList.removeRow(self.row_len)
+            self.row_len -= 1
+            self.METHOD.pop()
+            self.p_2_info('Delete successfully.')
+        else:
+            self.p_2_info('Can not delete empty item.')
 
     def start(self):
         self.FILE_NAME = self.ui.enter_proName.text()
