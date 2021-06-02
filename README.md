@@ -1,5 +1,5 @@
 # Control_Instruments
-use pyqt5 and pymeasure to control instruments in Qfort lab
+use PyQt5 and Pymeasure to control instruments in NCKU Qfort lab
 
 ***
 ## Installation
@@ -12,6 +12,12 @@ Before run this program, you need to install package below:
 - Numpy
 
 - Labdrivers
+
+- nidaqmx
+
+In vscode, it can be installed with pip
+
+    python -m pip install package_name
 
 ***
 ## Hint

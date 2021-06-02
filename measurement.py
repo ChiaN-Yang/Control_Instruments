@@ -1,164 +1,199 @@
+# measurement
 import sys
-import tempfile
-from time import sleep
-import numpy as np
-
-import logging
-log = logging.getLogger('')
-log.addHandler(logging.NullHandler())
-
-from pymeasure.experiment import Procedure, IntegerParameter, Parameter, \
-    FloatParameter
-from pymeasure.experiment import Results, unique_filename
+from PyQt5 import QtWidgets, QtGui, QtCore
 from pymeasure.display.Qt import QtGui
 from pymeasure.display.windows import ManagedWindow
 from pymeasure.display.widgets import SequencerWidget
+from pymeasure.experiment import Results, unique_filename
 
+# control panel
+from PyQt5.QtWidgets import QMessageBox     # TODO: when connect fail, pop up message
+from connection_interface import Ui_MainWindow
+import pyvisa as visa
+
+# Instruments
+from pymeasure.instruments.srs.sr830 import SR830
+from pymeasure.instruments.signalrecovery.dsp7265 import DSP7265
 from pymeasure.instruments.keithley import Keithley2400
+from labdrivers.oxford import ips120
+# TODO: from labdrivers.oxford import mercuryips_GPIB
+import nidaqmx      # TODO: add NI_cDAQ to interface
+
+# my file
+from method import *
 
 
-class Keithley2400_oVrI_Keithley2400_oVrI(Procedure):
-    """ instrment type       usage
-        Keithley2400         outPut voltage & read current
-        Keithley2400         outPut voltage & read current """
+class ControlPanel(QtWidgets.QMainWindow):
+    """this class is for user to connect instruments"""
 
-    instrs = []
-
-    max_voltage = FloatParameter('Source.Maximum voltage', units='V', default=10)
-    min_voltage = FloatParameter('Source.Minimum voltage', units='V', default=-10)
-    voltage_step = FloatParameter('Source.voltage Step', units='A', default=0.1)
-    delay = FloatParameter('Source.Delay Time', units='ms', default=20)
-    cuurent_range = FloatParameter('Cuurent Range', units='V', default=10)
-    other_voltage = FloatParameter('Gate.voltage', units='V', default=10)
-    
-    DATA_COLUMNS = ['Source.Voltage (V)','Source.Current (A)', 'Gate.Voltage (V)', 'Gate.Current (A)']
-
-    def startup(self):
-        log.info("Setting up instruments")
+    def __init__(self):
+        super(ControlPanel, self).__init__()
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
         
-        self.source = self.instrs[0]
-        self.source.reset() #Resets the instrument and clears the queue
-        self.source.use_front_terminals() #Enables the front terminals for measurement, and disables the rear terminals.
-        self.source.measure_current() #Configures the measurement of voltage.
-        sleep(0.1)
-        self.source.apply_voltage() #Configures the instrument to apply a source current
-        self.source.voltage_range = self.max_voltage
-        self.source.compliance_current = self.cuurent_range
-        self.source.enable_source() #Enables the source of voltage depending on the configuration of the instrument.
-        sleep(0.1) # wait here to give the instrument time to react
+        # Pre-run functions
+        self.visa_list()
         
-        self.meter = self.instrs[1]
-        self.meter.reset() #Resets the instrument and clears the queue
-        self.meter.use_front_terminals() #Enables the front terminals for measurement, and disables the rear terminals.
-        self.meter.measure_current() #Configures the measurement of voltage.
-        sleep(0.1)
-        self.meter.apply_voltage() #Configures the instrument to apply a source current
-        self.meter.voltage_range = self.max_voltage
-        self.meter.compliance_current = self.cuurent_range
-        self.meter.enable_source() #Enables the source of voltage depending on the configuration of the instrument.
-        sleep(0.1) # wait here to give the instrument time to react
+        # Buttons
+        self.ui.button_refresh.clicked.connect(self.visa_list)
+        self.ui.button_add.clicked.connect(self.connection)
+        self.ui.button_delete.clicked.connect(self.delete_list)
+        self.ui.button_start.clicked.connect(self.start)
 
-    def execute(self):
-        voltages_up = np.arange(self.min_voltage, self.max_voltage, self.voltage_step)
-        voltages_down = np.arange(self.max_voltage, self.min_voltage, -self.voltage_step)
-        voltages = np.concatenate((voltages_up, voltages_down))  # Include the reverse
-        steps = len(voltages)
-        log.info("Starting to sweep through voltage")
-        for i, voltage in enumerate(voltages):
-            log.debug("Setting the voltage to %g V" % voltage)
-            #output voltage
-            self.source.source_voltage = voltage
-            self.meter.source_voltage = self.other_voltage
-    
-            sleep(self.delay*1e-3)
-            # Read cuurent value
-            souce_current = self.source.current
-            meter_current = self.meter.current
-
-            data = {
-                'Source.Voltage (V)': voltage,
-                'Source.Current (A)': souce_current,
-                'Gate.Voltage (V)': self.other_voltage,
-                'Gate.Current (A)': meter_current
-                }
-            self.emit('results', data)
-            self.emit('progress', 100.*i/steps)
-            if self.should_stop():
-                log.warning("Catch stop command in procedure")
-                break
-
-    def shutdown(self):
-        self.source.shutdown()
-        self.meter.shutdown()
-        log.info("Finished")
-
-
-
-class Keithley2400_oIrV(Procedure):
-    """ instrment type       usage
-        Keithley2400         outPut current & read voltage """
-
-    instrs = []
-    
-    max_current = FloatParameter('Maximum Current', units='mA', default=10)
-    min_current = FloatParameter('Minimum Current', units='mA', default=-10)
-    current_step = FloatParameter('Current Step', units='mA', default=0.1)
-    delay = FloatParameter('Delay Time', units='ms', default=20)
-    voltage_range = FloatParameter('Voltage Range', units='V', default=10)
-
-    DATA_COLUMNS = ['Current (A)', 'Voltage (V)', 'Resistance (Ohm)']
-
-    def startup(self):
-        log.info("Setting up instruments")
+        # Table connected instruments
+        self.ui.table_instrList.setColumnWidth(0, 100)
+        self.ui.table_instrList.setColumnWidth(1, 100)
+        self.ui.table_instrList.setColumnWidth(2, 100)
         
-        self.sourcemeter = self.instrs[0]
-        self.sourcemeter.reset() #Resets the instrument and clears the queue
-        self.sourcemeter.use_front_terminals() #Enables the front terminals for measurement, and disables the rear terminals.
-        self.sourcemeter.measure_voltage() #Configures the measurement of voltage.
-        sleep(0.1) # wait here to give the instrument time to react
-        self.sourcemeter.apply_current() #Configures the instrument to apply a source current
-        self.sourcemeter.source_current_range = self.max_current*1e-3  # A
-        self.sourcemeter.compliance_voltage = self.voltage_range
-        self.sourcemeter.enable_source() #Enables the source of current depending on the configuration of the instrument.
-        sleep(2)
+        # Menu
+        self.ui.retranslateUi(self)
+        self.ui.actionQuit.setShortcut('Ctrl+Q')
+        self.ui.actionQuit.triggered.connect(app.exit)
+        
+        # Set Window Icon
+        self.setWindowIcon(QtGui.QIcon('Qfort.png'))
 
-    def execute(self):
-        currents_up = np.arange(self.min_current, self.max_current, self.current_step)
-        currents_down = np.arange(self.max_current, self.min_current, -self.current_step)
-        currents = np.concatenate((currents_up, currents_down))  # Include the reverse
-        currents *= 1e-3  # to mA from A
-        steps = len(currents)
-        log.info("Starting to sweep through current")
-        for i, current in enumerate(currents):
-            log.debug("Setting the current to %g A" % current)
+        # all my instruments
+        self.Keithley2400_1 = None
+        self.Keithley2400_2 = None
+        self.Keithley2400_3 = None
+        self.lockin_1 = None
+        self.lockin_2 = None
+        self.lockin_3 = None
+        self.DSP7265_1 = None
+        self.DSP7265_2 = None
+        self.DSP7265_3 = None
 
-            self.sourcemeter.source_current = current
-            #self.sourcemeter.reset_buffer() #Resets the buffer.
-            sleep(self.delay*1e-3)
-            #self.sourcemeter.start_buffer() #Starts the buffer.
-            #log.info("Waiting for the buffer to fill with measurements")
-            #self.sourcemeter.wait_for_buffer() #Blocks the program, waiting for a full buffer
-            
-            voltage = self.sourcemeter.voltage # Read voltage value
+        # variable that pass to measurement.py
+        self.INSTRS = []
+        self.METHOD = []
+        self.FILE_NAME = ''
 
-            if abs(current) <= 1e-10:
-                resistance = np.nan
-            else:
-                resistance = voltage/current
-            data = {
-                'Current (A)': current,
-                'Voltage (V)': voltage,
-                'Resistance (Ohm)': resistance
-                }
-            self.emit('results', data)
-            self.emit('progress', 100.*i/steps)
-            if self.should_stop():
-                log.warning("Catch stop command in procedure")
-                break
+    
+    def visa_list(self):
+        """detect available address"""
+        rm = visa.ResourceManager()
+        self.pyvisa_list = rm.list_resources()
+        self.ui.list_visa.clear()
+        self.ui.list_visa.addItems(self.pyvisa_list)
+    
 
-    def shutdown(self):
-        self.sourcemeter.shutdown()
-        log.info("Finished")
+    def p_2_info(self,string):
+        """put some word in the information board"""
+        self.ui.textBrowser.append(str(string))
+        
+
+    def connection(self):
+        """add instruments into table_instrList"""
+        # Get info from lists
+        self.Ins_VISA_add = self.ui.list_visa.currentItem().text()
+        self.Ins_type = self.ui.list_type.currentItem().text()
+        self.Ins_usage = self.ui.list_usage.currentItem().text()
+        self.Ins_name = self.ui.enter_name.text()
+    
+        # Check existance
+        if self.ui.table_instrList.findItems(self.Ins_VISA_add,QtCore.Qt.MatchExactly) != [] or \
+        self.ui.table_instrList.findItems(self.Ins_name,QtCore.Qt.MatchExactly) != []:
+            self.p_2_info('This VISA address or name has been used.')
+
+        else:
+            if self.Ins_type == 'Lock-in SR830':
+                if self.lockin_1 == None:
+                    try:
+                        self.lockin_1 = SR830(self.Ins_VISA_add)
+                        self.INSTRS.append(self.lockin_1)
+                        self.add_list()
+                    except visa.VisaIOError or AttributeError:
+                        self.p_2_info("%s connect fail" %self.Ins_type)
+
+                elif self.lockin_2 == None:
+                    try:
+                        self.lockin_2 = SR830(self.Ins_VISA_add)
+                        self.INSTRS.append(self.lockin_2)
+                        self.add_list()
+                    except visa.VisaIOError or AttributeError:
+                        self.p_2_info("%s connect fail" %self.Ins_type)
+
+                elif self.lockin_3 == None:
+                    try:
+                        self.lockin_3 = SR830(self.Ins_VISA_add)
+                        self.INSTRS.append(self.lockin_3)
+                        self.add_list()
+                    except visa.VisaIOError or AttributeError:
+                        self.p_2_info("%s connect fail" %self.Ins_type)
+
+                else:
+                    self.p_2_info('you already have 3 Lock-in SR830. dont be so greedy.')
+
+            if self.Ins_type == 'Lock-in DSP7265 ':
+                pass
+
+            if self.Ins_type == 'Keithley 2400':
+                if self.Keithley2400_1 == None:
+                    try:
+                        self.Keithley2400_1 = Keithley2400(self.Ins_VISA_add)
+                        self.INSTRS.append(self.Keithley2400_1)
+                        self.add_list()
+                    except visa.VisaIOError or AttributeError:
+                        self.p_2_info("%s connect fail" %self.Ins_type)
+
+                elif self.Keithley2400_2 == None:
+                    try:
+                        self.Keithley2400_2 = Keithley2400(self.Ins_VISA_add)
+                        self.INSTRS.append(self.Keithley2400_2)
+                        self.add_list()
+                    except visa.VisaIOError or AttributeError:
+                        self.p_2_info("%s connect fail" %self.Ins_type)
+
+                elif self.Keithley2400_3 == None:
+                    try:
+                        self.Keithley2400_3 = Keithley2400(self.Ins_VISA_add)
+                        self.INSTRS.append(self.Keithley2400_3)
+                        self.add_list()
+                    except visa.VisaIOError or AttributeError:
+                        self.p_2_info("%s connect fail" %self.Ins_type)
+
+                else:
+                    self.p_2_info('you already have 3 Keithley2400. dont be so greedy.')
+
+            if self.Ins_type == 'Oxford Instrument IPS120':
+                pass
+
+            if self.Ins_type == 'Oxford Instrument mercruy IPS':
+                pass
+
+            if self.Ins_type == 'Oxford Instrument mercury ITC':
+                pass
+
+    def add_list(self):
+        self.p_2_info('%s has been connected successfully.' %self.Ins_type)
+
+        # refresh table_instrList
+        row_len = self.ui.table_instrList.rowCount() -1
+        self.ui.table_instrList.insertRow(row_len+1)
+        Ins_property = [self.Ins_name, self.Ins_type, self.Ins_VISA_add, self.Ins_usage]
+        for i,p in enumerate(Ins_property):
+            self.ui.table_instrList.setItem(row_len, i, QtWidgets.QTableWidgetItem(p))
+
+        # add METHOD
+        if self.Ins_usage == 'output voltage & measure current':
+            self.METHOD.append('Keithley2400_oVrI')
+        elif self.Ins_usage == 'output current & measure voltage':
+            self.METHOD.append('Keithley2400_oIrV')
+
+
+    def delete_list():
+        pass
+
+    def start(self):
+        self.FILE_NAME = self.ui.enter_proName.text()
+        self.setup_finish = True
+         # pass some variable that measurement.py need
+        method = self.METHOD
+        instrs = self.INSTRS
+        filename_pre = self.FILE_NAME
+        window = MainWindow(method, instrs, filename_pre)
+        window.show()
 
 
 
@@ -169,9 +204,11 @@ class MainWindow(ManagedWindow):
         if method == ['Keithley2400_oVrI', 'Keithley2400_oVrI']:
             procedure = Keithley2400_oVrI_Keithley2400_oVrI
             Keithley2400_oVrI_Keithley2400_oVrI.instrs = instrs
+            INPUT = Keithley2400_oVrI_Keithley2400_oVrI.inputs
         elif method == ['Keithley2400_oIrV']:
             procedure = Keithley2400_oIrV
             Keithley2400_oIrV.instrs = instrs
+            INPUT = Keithley2400_oIrV.inputs
         else :
             print("do not have this method")
 
@@ -179,25 +216,18 @@ class MainWindow(ManagedWindow):
 
         super(MainWindow, self).__init__(
             procedure_class=procedure,
-            inputs=['max_voltage', 'min_voltage', 'voltage_step',
-                    'delay', 'cuurent_range', 'other_voltage'],
-            displays=['max_voltage', 'min_voltage', 'voltage_step',
-                    'delay', 'cuurent_range', 'other_voltage'],
-            x_axis='Source.Voltage (V)',
-            y_axis='Gate.Current (A)',
+            inputs=INPUT,
+            displays=INPUT,
+            x_axis='Voltage (V)',
+            y_axis='Current (A)',
             sequencer=True,
-            sequencer_inputs=['max_voltage', 'min_voltage', 'voltage_step',
-                            'delay', 'cuurent_range', 'other_voltage'],
+            sequencer_inputs=INPUT,
             #sequence_file="gui_sequencer_example_sequence.txt",
             inputs_in_scrollarea=True
         )
-        self.setWindowTitle('hihi Example')
-
-
+        self.setWindowTitle('PyMeas')
 
     def queue(self, *, procedure=None):
-        #filename = tempfile.mktemp()
-
         directory = "./"  # Change this to the desired directory
         filename = unique_filename(directory, prefix=self.filename_pre)
 
@@ -211,10 +241,7 @@ class MainWindow(ManagedWindow):
 
 
 if __name__ == "__main__":
-    app = QtGui.QApplication(sys.argv)
-    method = ['Keithley2400_oVrI', 'Keithley2400_oVrI']
-    instrs = [Keithley2400("GPIB::26"), Keithley2400("GPIB::24")]
-    filename_pre ='QAQ'
-    window = MainWindow(method, instrs, filename_pre)
-    window.show()
+    app = QtWidgets.QApplication([]) 
+    connect_interface = ControlPanel()
+    connect_interface.show()
     sys.exit(app.exec_())
