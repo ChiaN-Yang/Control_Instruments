@@ -69,10 +69,10 @@ class Keithley2400_oVrI_Keithley2400_oVrI(Procedure):
             meter_current = self.meter.current
 
             data = {
-                'Source.Voltage (V)': voltage,
-                'Source.Current (A)': souce_current,
-                'Gate.Voltage (V)': self.other_voltage,
-                'Gate.Current (A)': meter_current
+                self.DATA_COLUMNS[0]: voltage,
+                self.DATA_COLUMNS[1]: souce_current,
+                self.DATA_COLUMNS[2]: self.other_voltage,
+                self.DATA_COLUMNS[3]: meter_current
                 }
             self.emit('results', data)
             self.emit('progress', 100.*i/steps)
@@ -140,9 +140,9 @@ class Keithley2400_oIrV(Procedure):
             else:
                 resistance = voltage/current
             data = {
-                'Current (A)': current,
-                'Voltage (V)': voltage,
-                'Resistance (Ohm)': resistance
+                self.DATA_COLUMNS[0]: current,
+                self.DATA_COLUMNS[1]: voltage,
+                self.DATA_COLUMNS[2]: resistance
                 }
             self.emit('results', data)
             self.emit('progress', 100.*i/steps)

@@ -64,11 +64,6 @@ class ControlPanel(QtWidgets.QMainWindow):
         self.DSP7265_2 = None
         self.DSP7265_3 = None
 
-        # variable that pass to measurement.py
-        self.INSTRS = []
-        self.METHOD = []
-        self.FILE_NAME = ''
-
     
     def visa_list(self):
         """detect available address"""
@@ -101,24 +96,21 @@ class ControlPanel(QtWidgets.QMainWindow):
                 if self.lockin_1 == None:
                     try:
                         self.lockin_1 = SR830(self.Ins_VISA_add)
-                        self.INSTRS.append(self.lockin_1)
-                        self.add_list()
+                        self.add_list(self.lockin_1)
                     except visa.VisaIOError or AttributeError:
                         self.p_2_info("%s connect fail" %self.Ins_type)
 
                 elif self.lockin_2 == None:
                     try:
                         self.lockin_2 = SR830(self.Ins_VISA_add)
-                        self.INSTRS.append(self.lockin_2)
-                        self.add_list()
+                        self.add_list(self.lockin_2)
                     except visa.VisaIOError or AttributeError:
                         self.p_2_info("%s connect fail" %self.Ins_type)
 
                 elif self.lockin_3 == None:
                     try:
                         self.lockin_3 = SR830(self.Ins_VISA_add)
-                        self.INSTRS.append(self.lockin_3)
-                        self.add_list()
+                        self.add_list(self.lockin_3)
                     except visa.VisaIOError or AttributeError:
                         self.p_2_info("%s connect fail" %self.Ins_type)
 
@@ -132,24 +124,21 @@ class ControlPanel(QtWidgets.QMainWindow):
                 if self.Keithley2400_1 == None:
                     try:
                         self.Keithley2400_1 = Keithley2400(self.Ins_VISA_add)
-                        self.INSTRS.append(self.Keithley2400_1)
-                        self.add_list()
+                        self.add_list(self.Keithley2400_1)
                     except visa.VisaIOError or AttributeError:
                         self.p_2_info("%s connect fail" %self.Ins_type)
 
                 elif self.Keithley2400_2 == None:
                     try:
                         self.Keithley2400_2 = Keithley2400(self.Ins_VISA_add)
-                        self.INSTRS.append(self.Keithley2400_2)
-                        self.add_list()
+                        self.add_list(self.Keithley2400_2)
                     except visa.VisaIOError or AttributeError:
                         self.p_2_info("%s connect fail" %self.Ins_type)
 
                 elif self.Keithley2400_3 == None:
                     try:
                         self.Keithley2400_3 = Keithley2400(self.Ins_VISA_add)
-                        self.INSTRS.append(self.Keithley2400_3)
-                        self.add_list()
+                        self.add_list(self.Keithley2400_3)
                     except visa.VisaIOError or AttributeError:
                         self.p_2_info("%s connect fail" %self.Ins_type)
 
@@ -165,8 +154,13 @@ class ControlPanel(QtWidgets.QMainWindow):
             if self.Ins_type == 'Oxford Instrument mercury ITC':
                 pass
 
-    def add_list(self):
+    def add_list(self, instr):
+        """add instrument info to list"""
         self.p_2_info('%s has been connected successfully.' %self.Ins_type)
+
+        # add INSTRNMENT and NAME
+        MainWindow.INSTRS.append(instr)
+        MainWindow.NAME.append(self.Ins_name)
 
         # refresh table_instrList
         self.row_len = self.ui.table_instrList.rowCount() -1
@@ -177,55 +171,62 @@ class ControlPanel(QtWidgets.QMainWindow):
 
         # add METHOD
         if self.Ins_usage == 'output voltage & measure current':
-            self.METHOD.append('Keithley2400_oVrI')
+            MainWindow.METHOD.append('Keithley2400_oVrI')
         elif self.Ins_usage == 'output current & measure voltage':
-            self.METHOD.append('Keithley2400_oIrV')
+            MainWindow.METHOD.append('Keithley2400_oIrV')
 
 
     def delete_list(self):
+        """delete instrument info from list"""
         if self.row_len >= 0:
             self.ui.table_instrList.removeRow(self.row_len)
             self.row_len -= 1
-            self.METHOD.pop()
+            MainWindow.METHOD.pop()
+            MainWindow.NAME.pop()
             self.p_2_info('Delete successfully.')
         else:
             self.p_2_info('Can not delete empty item.')
 
     def start(self):
-        self.FILE_NAME = self.ui.enter_proName.text()
-        self.setup_finish = True
-         # pass some variable that measurement.py need
-        method = self.METHOD
-        instrs = self.INSTRS
-        filename_pre = self.FILE_NAME
-        window = MainWindow(method, instrs, filename_pre)
+        """start measure"""
+        MainWindow.FILE_NAME = self.ui.enter_proName.text()
+        window = MainWindow()
         window.show()
 
 
 
 class MainWindow(ManagedWindow):
+    """this class use pymeasure to let user control instruments"""
+    # variable from ControlPanel
+    INSTRS = []
+    METHOD = []
+    NAME = []
+    FILE_NAME = ''
 
-    def __init__(self, method, instrs, filename_pre):
+    def __init__(self):
 
-        if method == ['Keithley2400_oVrI', 'Keithley2400_oVrI']:
+        if self.METHOD == ['Keithley2400_oVrI', 'Keithley2400_oVrI']:
             procedure = Keithley2400_oVrI_Keithley2400_oVrI
-            Keithley2400_oVrI_Keithley2400_oVrI.instrs = instrs
+            Keithley2400_oVrI_Keithley2400_oVrI.instrs = self.INSTRS
             INPUT = Keithley2400_oVrI_Keithley2400_oVrI.inputs
-        elif method == ['Keithley2400_oIrV']:
+            COLUMNS = Keithley2400_oVrI_Keithley2400_oVrI.DATA_COLUMNS
+
+        elif self.METHOD == ['Keithley2400_oIrV']:
             procedure = Keithley2400_oIrV
-            Keithley2400_oIrV.instrs = instrs
+            Keithley2400_oIrV.instrs = self.INSTRS
             INPUT = Keithley2400_oIrV.inputs
+            COLUMNS = Keithley2400_oIrV.DATA_COLUMNS
+            
         else :
             print("do not have this method")
 
-        self.filename_pre = filename_pre
 
         super(MainWindow, self).__init__(
             procedure_class=procedure,
             inputs=INPUT,
             displays=INPUT,
-            x_axis='Voltage (V)',
-            y_axis='Current (A)',
+            x_axis=COLUMNS[0],
+            y_axis=COLUMNS[1],
             sequencer=True,
             sequencer_inputs=INPUT,
             #sequence_file="gui_sequencer_example_sequence.txt",
@@ -235,7 +236,7 @@ class MainWindow(ManagedWindow):
 
     def queue(self, *, procedure=None):
         directory = "./"  # Change this to the desired directory
-        filename = unique_filename(directory, prefix=self.filename_pre)
+        filename = unique_filename(directory, prefix = self.FILE_NAME)
 
         if procedure is None:
             procedure = self.make_procedure()

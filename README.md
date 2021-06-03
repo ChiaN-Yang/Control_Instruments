@@ -1,5 +1,5 @@
 # Control_Instruments
-use PyQt5 and Pymeasure to control instruments in NCKU Qfort lab
+Please run main.py to control instruments in NCKU Qfort lab
 
 ***
 ## Installation
@@ -13,7 +13,7 @@ Before run this program, you need to install package below:
 
 - Labdrivers
 
-- nidaqmx
+- NIDAQmx
 
 In vscode, it can be installed with pip
 
