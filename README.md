@@ -5,6 +5,8 @@ Please run main.py to control instruments in NCKU Qfort lab
 ## Installation
 Before run this program, you need to install package below:
 
+- Python 3.6 or later
+
 - PyQt5
 
 - Pymeasure
