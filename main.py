@@ -154,6 +154,7 @@ class ControlPanel(QtWidgets.QMainWindow):
             if self.Ins_type == 'Oxford Instrument mercury ITC':
                 pass
 
+
     def add_list(self, instr):
         """add instrument info to list"""
         self.p_2_info('%s has been connected successfully.' %self.Ins_type)
@@ -187,11 +188,12 @@ class ControlPanel(QtWidgets.QMainWindow):
         else:
             self.p_2_info('Can not delete empty item.')
 
+
     def start(self):
         """start measure"""
         MainWindow.FILE_NAME = self.ui.enter_proName.text()
-        window = MainWindow()
-        window.show()
+        self.window = MainWindow()
+        self.window.show()
 
 
 
@@ -233,6 +235,7 @@ class MainWindow(ManagedWindow):
             inputs_in_scrollarea=True
         )
         self.setWindowTitle('PyMeas')
+
 
     def queue(self, *, procedure=None):
         directory = "./"  # Change this to the desired directory
